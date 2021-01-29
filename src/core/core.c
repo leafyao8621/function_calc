@@ -66,6 +66,14 @@ const char *binary_names[5] = {
     "^"
 };
 
+const char *type_names[5] = {
+    "NOP",
+    "Number",
+    "Unary",
+    "Binary",
+    "Input",
+};
+
 int core_evaluate(double in, double *out) {
     static double stack[100];
     double *sp = stack;

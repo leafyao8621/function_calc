@@ -18,6 +18,7 @@ struct Symbol {
 
 extern struct Symbol expression[100];
 extern double pi;
+extern const char *type_names[5];
 extern const char *unary_names[12];
 extern const char *binary_names[5];
 
