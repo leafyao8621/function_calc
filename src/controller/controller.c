@@ -13,6 +13,8 @@
 #define PERFORM 6
 #define EVALUATE 7
 #define EVALUATE_ENTRY 8
+#define INTEGRATE 9
+#define INTEGRATE_ENTRY 10
 
 static char page, selection[8], level, mode;
 static const char *template = "+0.000000E+00";
@@ -130,8 +132,22 @@ static void render_evaluate(void) {
 }
 
 static void remove_evaluate(void) {
-    for (int i = 0; i < 3; ++i) {
+    for (int i = 0; i < 2; ++i) {
         mvprintw(11 + i, 10, "%15s", " ");
+    }
+}
+
+static void render_integrate(void) {
+    mvprintw(11, 10, "%-5s %+.6E", "Start", start);
+    mvprintw(12, 10, "%-5s %+.6E", "End", end);
+    mvprintw(13, 10, "%-5s %+.6E", "Chunk", chunk);
+    mvprintw(14, 10, "Integrate");
+    move(11, 10);
+}
+
+static void remove_integrate(void) {
+    for (int i = 0; i < 4; ++i) {
+        mvprintw(11 + i, 10, "%19s", " ");
     }
 }
 
@@ -178,6 +194,10 @@ int controller_handle(void) {
             selection[level] = (((selection[level] - 1) % 13) + 13) % 13;
             move(11, 12 + selection[level]);
             break;
+        case INTEGRATE_ENTRY:
+            selection[level] = (((selection[level] - 1) % 13) + 13) % 13;
+            move(11 + selection[level - 1], 16 + selection[level]);
+            break;
         }
         break;
     case KEY_RIGHT:
@@ -195,6 +215,10 @@ int controller_handle(void) {
         case EVALUATE_ENTRY:
             selection[level] = (selection[level] + 1) % 13;
             move(11, 12 + selection[level]);
+            break;
+        case INTEGRATE_ENTRY:
+            selection[level] = (selection[level] + 1) % 13;
+            move(11 + selection[level - 1], 16 + selection[level]);
             break;
         }
         break;
@@ -320,6 +344,55 @@ int controller_handle(void) {
             mvprintw(11, 12, "%s", buf);
             move(11, 12 + selection[level]);
             break;
+        case INTEGRATE:
+            selection[level] = (((selection[level] - 1) % 4) + 4) % 4;
+            move(11 + selection[level], 10);
+            break;
+        case INTEGRATE_ENTRY:
+            switch (selection[level]) {
+            case 0:
+            case 10:
+                if (buf[1] == '0') {
+                    break;
+                }
+                switch (buf[selection[level]]) {
+                case '+':
+                    buf[selection[level]] = '-';
+                    break;
+                case '-':
+                    buf[selection[level]] = '+';
+                    break;
+                }
+                break;
+            case 1:
+                if (buf[1] == '9') {
+                    buf[1] = '0';
+                    strcpy(buf, template);
+                } else {
+                    ++buf[1];
+                }
+                break;
+            case 3:
+            case 4:
+            case 5:
+            case 6:
+            case 7:
+            case 8:
+            case 11:
+            case 12:
+                if (buf[1] == '0') {
+                    break;
+                }
+                if (buf[selection[level]] == '9') {
+                    buf[selection[level]] = '0';
+                } else {
+                    ++buf[selection[level]];
+                }
+                break;
+            }
+            mvprintw(11 + selection[level - 1], 16, "%s", buf);
+            move(11 + selection[level - 1], 16 + selection[level]);
+            break;
         }
         break;
     case KEY_DOWN:
@@ -409,7 +482,6 @@ int controller_handle(void) {
             switch (selection[level]) {
             case 0:
             case 10:
-                mvprintw(10, 0, "%s", buf);
                 if (buf[1] == '0') {
                     break;
                 }
@@ -456,6 +528,61 @@ int controller_handle(void) {
             }
             mvprintw(11, 12, "%s", buf);
             move(11, 12 + selection[level]);
+            break;
+        case INTEGRATE:
+            selection[level] = (selection[level] + 1) % 4;
+            move(11 + selection[level], 10);
+            break;
+        case INTEGRATE_ENTRY:
+            switch (selection[level]) {
+            case 0:
+            case 10:
+                if (buf[1] == '0') {
+                    break;
+                }
+                switch (buf[selection[level]]) {
+                case '+':
+                    buf[selection[level]] = '-';
+                    break;
+                case '-':
+                    buf[selection[level]] = '+';
+                    break;
+                }
+                break;
+            case 1:
+                switch (buf[1]) {
+                case '0':
+                    buf[1] = '9';
+                    break;
+                case '1':
+                    --buf[1];
+                    strcpy(buf, template);
+                    break;
+                default:
+                    --buf[1];
+                    break;
+                }
+                break;
+            case 3:
+            case 4:
+            case 5:
+            case 6:
+            case 7:
+            case 8:
+            case 11:
+            case 12:
+                if (buf[1] == '0') {
+                    break;
+                }
+                if (buf[selection[level]] == '0') {
+                    buf[selection[level]] = '9';
+                } else {
+                    --buf[selection[level]];
+                }
+                break;
+            }
+            mvprintw(11 + selection[level - 1], 16, "%s", buf);
+            move(11 + selection[level - 1], 16 + selection[level]);
             break;
         }
         break;
@@ -565,6 +692,11 @@ int controller_handle(void) {
                 ++level;
                 render_evaluate();
                 break;
+            case 1:
+                mode = INTEGRATE;
+                ++level;
+                render_integrate();
+                break;
             }
             break;
         case EVALUATE:
@@ -594,6 +726,56 @@ int controller_handle(void) {
             --level;
             x = atof(buf);
             move(11, 10);
+            break;
+        case INTEGRATE:
+            switch (selection[level]) {
+            case 0:
+                mode = INTEGRATE_ENTRY;
+                ++level;
+                sprintf(buf, "%+.6E", start);
+                move(11, 16);
+                break;
+            case 1:
+                mode = INTEGRATE_ENTRY;
+                ++level;
+                sprintf(buf, "%+.6E", end);
+                move(12, 16);
+                break;
+            case 2:
+                mode = INTEGRATE_ENTRY;
+                ++level;
+                sprintf(buf, "%+.6E", chunk);
+                move(13, 16);
+                break;
+            case 3:
+                ret = core_integrate(start, end, chunk, &res);
+                if (!ret) {
+                    mvprintw(10, 0, "Result: %+.6E", res);
+                } else {
+                    mvprintw(10, 0, "Result: %13s", "Error");
+                }
+                getch();
+                mvprintw(10, 0, "%21s", " ");
+                move(11 + selection[level], 10);
+                break;
+            }
+            break;
+        case INTEGRATE_ENTRY:
+            mode = INTEGRATE;
+            selection[level] = 0;
+            --level;
+            switch (selection[level]) {
+            case 0:
+                start = atof(buf);
+                break;
+            case 1:
+                end = atof(buf);
+                break;
+            case 2:
+                chunk = atof(buf);
+                break;
+            }
+            move(11 + selection[level], 10);
             break;
         }
         break;
@@ -665,6 +847,36 @@ int controller_handle(void) {
             sprintf(buf, "%+.6E", x);
             mvprintw(11, 12, "%+.6E", x);
             move(11, 10);
+            break;
+        case INTEGRATE:
+            mode = PERFORM;
+            selection[level] = 0;
+            --level;
+            start = 0;
+            end = 0;
+            chunk = 0;
+            remove_integrate();
+            move(11 + selection[level], 0);
+            break;
+        case INTEGRATE_ENTRY:
+            mode = INTEGRATE;
+            selection[level] = 0;
+            --level;
+            switch (selection[level]) {
+            case 0:
+                sprintf(buf, "%+.6E", start);
+                mvprintw(11, 16, "%+.6E", start);
+                break;
+            case 1:
+                sprintf(buf, "%+.6E", end);
+                mvprintw(12, 16, "%+.6E", end);
+                break;
+            case 2:
+                sprintf(buf, "%+.6E", chunk);
+                mvprintw(13, 16, "%+.6E", chunk);
+                break;
+            }
+            move(11 + selection[level], 10);
             break;
         }
         break;
