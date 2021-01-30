@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 #include <ncurses.h>
 #include "controller.h"
 #include "../core/core.h"
@@ -15,6 +16,8 @@
 #define EVALUATE_ENTRY 8
 #define INTEGRATE 9
 #define INTEGRATE_ENTRY 10
+#define PLOT 11
+#define PLOT_ENTRY 12
 
 static char page, selection[8], level, mode;
 static const char *template = "+0.000000E+00";
@@ -151,6 +154,73 @@ static void remove_integrate(void) {
     }
 }
 
+static void render_plot(void) {
+    mvprintw(11, 10, "%-5s %+.6E", "Start", start);
+    mvprintw(12, 10, "%-5s %+.6E", "End", end);
+    mvprintw(13, 10, "Plot");
+    move(11, 10);
+}
+
+static void remove_plot(void) {
+    for (int i = 0; i < 3; ++i) {
+        mvprintw(11 + i, 10, "%19s", " ");
+    }
+}
+
+
+static void plot(void) {
+    if (start >= end) {
+        mvprintw(10, 0, "Error");
+        getch();
+        mvprintw(10, 0, "%5s", " ");
+        return;
+    }
+    double vals[40];
+    double step = (end - start) / 40;
+    double cur = start;
+    double *val_iter = vals;
+    char set = 0;
+    double min, max;
+    for (int i = 0; i < 40; ++i, ++val_iter, cur += step) {
+        if (core_evaluate(cur, val_iter)) {
+            mvprintw(10, 0, "Error");
+            getch();
+            mvprintw(10, 0, "%5s", " ");
+            return;
+        }
+        if (!isnan(*val_iter)) {
+            if (!set) {
+                set = 1;
+                min = *val_iter;
+                max = *val_iter;
+            } else {
+                if (*val_iter < min) {
+                    min = *val_iter;
+                }
+                if (*val_iter > max) {
+                    max = *val_iter;
+                }
+            }
+        }
+    }
+    if (!set) {
+        return;
+    }
+    clear();
+    double range = max - min;
+    val_iter = vals;
+    for (int i = 0; i < 40; ++i, ++val_iter) {
+        if (!isnan(*val_iter)) {
+            mvaddch(19 - (*val_iter - min) / range * 19, i, '*');
+        }
+    }
+    getch();
+    clear();
+    render_selection();
+    render_perform();
+    render_plot();
+}
+
 void controller_initialize(void) {
     initscr();
     keypad(stdscr, TRUE);
@@ -195,6 +265,7 @@ int controller_handle(void) {
             move(11, 12 + selection[level]);
             break;
         case INTEGRATE_ENTRY:
+        case PLOT_ENTRY:
             selection[level] = (((selection[level] - 1) % 13) + 13) % 13;
             move(11 + selection[level - 1], 16 + selection[level]);
             break;
@@ -217,6 +288,7 @@ int controller_handle(void) {
             move(11, 12 + selection[level]);
             break;
         case INTEGRATE_ENTRY:
+        case PLOT_ENTRY:
             selection[level] = (selection[level] + 1) % 13;
             move(11 + selection[level - 1], 16 + selection[level]);
             break;
@@ -349,6 +421,7 @@ int controller_handle(void) {
             move(11 + selection[level], 10);
             break;
         case INTEGRATE_ENTRY:
+        case PLOT_ENTRY:
             switch (selection[level]) {
             case 0:
             case 10:
@@ -392,6 +465,10 @@ int controller_handle(void) {
             }
             mvprintw(11 + selection[level - 1], 16, "%s", buf);
             move(11 + selection[level - 1], 16 + selection[level]);
+            break;
+        case PLOT:
+            selection[level] = (((selection[level] - 1) % 3) + 3) % 3;
+            move(11 + selection[level], 10);
             break;
         }
         break;
@@ -534,6 +611,7 @@ int controller_handle(void) {
             move(11 + selection[level], 10);
             break;
         case INTEGRATE_ENTRY:
+        case PLOT_ENTRY:
             switch (selection[level]) {
             case 0:
             case 10:
@@ -583,6 +661,10 @@ int controller_handle(void) {
             }
             mvprintw(11 + selection[level - 1], 16, "%s", buf);
             move(11 + selection[level - 1], 16 + selection[level]);
+            break;
+        case PLOT:
+            selection[level] = (selection[level] + 1) % 3;
+            move(11 + selection[level], 10);
             break;
         }
         break;
@@ -697,6 +779,11 @@ int controller_handle(void) {
                 ++level;
                 render_integrate();
                 break;
+            case 2:
+                mode = PLOT;
+                ++level;
+                render_plot();
+                break;
             }
             break;
         case EVALUATE:
@@ -773,6 +860,39 @@ int controller_handle(void) {
                 break;
             case 2:
                 chunk = atof(buf);
+                break;
+            }
+            move(11 + selection[level], 10);
+            break;
+        case PLOT:
+            switch (selection[level]) {
+            case 0:
+                mode = PLOT_ENTRY;
+                ++level;
+                sprintf(buf, "%+.6E", start);
+                move(11, 16);
+                break;
+            case 1:
+                mode = PLOT_ENTRY;
+                ++level;
+                sprintf(buf, "%+.6E", end);
+                move(12, 16);
+                break;
+            case 2:
+                plot();
+                break;
+            }
+            break;
+        case PLOT_ENTRY:
+            mode = PLOT;
+            selection[level] = 0;
+            --level;
+            switch (selection[level]) {
+            case 0:
+                start = atof(buf);
+                break;
+            case 1:
+                end = atof(buf);
                 break;
             }
             move(11 + selection[level], 10);
@@ -874,6 +994,32 @@ int controller_handle(void) {
             case 2:
                 sprintf(buf, "%+.6E", chunk);
                 mvprintw(13, 16, "%+.6E", chunk);
+                break;
+            }
+            move(11 + selection[level], 10);
+            break;
+        case PLOT:
+            mode = PERFORM;
+            selection[level] = 0;
+            --level;
+            start = 0;
+            end = 0;
+            chunk = 0;
+            remove_plot();
+            move(11 + selection[level], 0);
+            break;
+        case PLOT_ENTRY:
+            mode = PLOT;
+            selection[level] = 0;
+            --level;
+            switch (selection[level]) {
+            case 0:
+                sprintf(buf, "%+.6E", start);
+                mvprintw(11, 16, "%+.6E", start);
+                break;
+            case 1:
+                sprintf(buf, "%+.6E", end);
+                mvprintw(12, 16, "%+.6E", end);
                 break;
             }
             move(11 + selection[level], 10);
